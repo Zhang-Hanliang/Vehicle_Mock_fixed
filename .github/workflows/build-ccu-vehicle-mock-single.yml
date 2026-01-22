@@ -62,14 +62,22 @@ jobs:
           fi
 
       # CI-only：不改仓库里的 Dockerfile，只在 CI 生成补丁版 Dockerfile.ci
-      # 目的：解决 arm64 下 pip 构建 staticx 时 build-isolation 环境找不到 SCons 的问题
+      # 1) staticx：禁用 build isolation（避免 arm64 下构建失败）
+      # 2) pyinstaller：强制收集 jaraco 子模块（避免 run-exe 运行时报 jaraco 缺失）
       - name: Prepare patched Dockerfile for CI
         shell: bash
         run: |
           cp vehicle-mock/Dockerfile vehicle-mock/Dockerfile.ci
+
+          # staticx fix
           sed -i 's/pip3 install --no-cache-dir staticx/pip3 install --no-cache-dir --no-build-isolation staticx/g' vehicle-mock/Dockerfile.ci
-          echo "Patched staticx line:"
-          grep -n "staticx" vehicle-mock/Dockerfile.ci || true
+
+          # pyinstaller fix: collect jaraco
+          # 仅在 CI 版本中注入参数，不修改仓库原 Dockerfile
+          sed -i 's/\bpyinstaller\b/pyinstaller --collect-submodules jaraco --hidden-import jaraco.text --hidden-import jaraco.functools --hidden-import jaraco.context/g' vehicle-mock/Dockerfile.ci
+
+          echo "Patched lines (staticx/pyinstaller):"
+          grep -n "staticx\|pyinstaller" vehicle-mock/Dockerfile.ci || true
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
