@@ -1,0 +1,29 @@
+name: Build CCU vehicle-mock
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+  packages: write
+  actions: write
+  checks: write
+
+jobs:
+  get-app-name:
+    runs-on: ubuntu-22.04
+    outputs:
+      app_name: ${{ steps.export.outputs.app_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: export
+        run: |
+          echo "app_name=CCU vehicle-mock" >> $GITHUB_OUTPUT
+
+  build-image:
+    uses: ./.github/workflows/build-ccu-vehicle-mock-single.yml
+    needs: [get-app-name]
+    with:
+      platform: arm64
+      app_name: ${{ needs.get-app-name.outputs.app_name }}
