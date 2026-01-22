@@ -1,0 +1,12 @@
+2025-10-29 13:02:04,441 - INFO - Initialization ...
+2025-10-29 13:02:04,442 - INFO - Connecting to Data Broker [127.0.0.1:55555]
+2025-10-29 13:02:04,449 - INFO - Databroker connected!
+2025-10-29 13:02:04,449 - INFO - Datapoint added/removed
+2025-10-29 13:02:04,500 - INFO - Subscribing to 5 mocked datapoints...
+2025-10-29 13:02:04,502 - INFO - Feeding 'Vehicle.Body.Lights.ExteriorLightControl' with value [1, 2, 3]
+2025-10-29 13:02:04,547 - INFO - Feeding 'Vehicle.Chassis.Accelerator.PedalPositionControl' with value [1, 2]
+2025-10-29 13:02:04,592 - INFO - Feeding 'Vehicle.Chassis.Brake.PedalPositionControl' with value [1, 2]
+2025-10-29 13:02:04,594 - INFO - Feeding 'Vehicle.Chassis.SteeringWheel.AngleControl' with value [1, 2]
+2025-10-29 13:02:04,636 - INFO - Feeding 'Vehicle.Powertrain.StartStop.StartControl' with value [1, 2]
+2025-10-29 13:02:05,443 - INFO - Running behavior for Vehicle.Body.Lights.ExteriorLightControl
+2025-10-29 13:02:05,443 - INFO - Feeding 'Vehicle.Body.Lights.ExteriorLightControl' with value [17, 1, 125]
