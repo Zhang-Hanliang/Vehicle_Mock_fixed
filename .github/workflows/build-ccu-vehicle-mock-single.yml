@@ -63,21 +63,24 @@ jobs:
 
       # CI-only：不改仓库里的 Dockerfile，只在 CI 生成补丁版 Dockerfile.ci
       # 仅两处补丁：
-      # 1) staticx: 加 --no-build-isolation（解决 arm64 staticx build 失败）
-      # 2) pyinstaller: 在“打包命令”那一行加 jaraco 收集参数（解决 run-exe 运行缺 jaraco）
+      # 1) staticx：加 --no-build-isolation（避免 arm64 下构建 staticx wheel 失败）
+      # 2) pyinstaller：只添加 jaraco 的 hidden-import（不使用 collect-submodules，避免非法模块名 show-newlines）
       - name: Prepare patched Dockerfile for CI
         shell: bash
         run: |
           cp vehicle-mock/Dockerfile vehicle-mock/Dockerfile.ci
 
-          # 1) staticx fix：只替换 staticx 安装这一段，不碰其它 pip install
+          # 1) staticx fix
           sed -i 's/pip3 install --no-cache-dir staticx/pip3 install --no-cache-dir --no-build-isolation staticx/g' vehicle-mock/Dockerfile.ci
 
-          # 2) pyinstaller fix：只替换“RUN pyinstaller ...”这一行（不影响 pip install pyinstaller==...）
-          sed -i 's|^RUN pyinstaller --clean -F -s --paths=src mockprovider.py|RUN pyinstaller --clean -F -s --paths=src --collect-submodules jaraco --hidden-import jaraco.text --hidden-import jaraco.functools --hidden-import jaraco.context mockprovider.py|g' vehicle-mock/Dockerfile.ci
+          # 2) pyinstaller fix (precise line replacement)
+          # Original line in your Dockerfile:
+          #   RUN pyinstaller --clean -F -s --paths=src mockprovider.py
+          # Patch it to include jaraco hidden-imports (NO collect-submodules)
+          sed -i 's|^RUN pyinstaller --clean -F -s --paths=src mockprovider.py|RUN pyinstaller --clean -F -s --paths=src --hidden-import jaraco.text --hidden-import jaraco.functools --hidden-import jaraco.context mockprovider.py|g' vehicle-mock/Dockerfile.ci
 
           echo "Patched lines:"
-          grep -n "staticx\|RUN pyinstaller" vehicle-mock/Dockerfile.ci || true
+          grep -n "staticx\|^RUN pyinstaller" vehicle-mock/Dockerfile.ci || true
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
