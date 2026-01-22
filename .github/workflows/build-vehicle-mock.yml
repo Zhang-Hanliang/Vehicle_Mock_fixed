@@ -47,8 +47,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           # 关键：用仓库根目录作为 context，确保 Dockerfile 里 COPY 的相对路径和“别人能成功构建”的方式一致
-          context: .
-          file: vehicle-mock/Dockerfile
+          context: ./vehicle-mock
+          file: ./vehicle-mock/Dockerfile
 
           # 只打包 CCU 需要的 arm64；如果你要 multiarch，我在下面给你开关
           platforms: linux/arm64
