@@ -1,4 +1,4 @@
-name: Build & Push vehicle-mock
+name: Build vehicle-mock
 
 on:
   workflow_dispatch:
@@ -11,26 +11,18 @@ on:
 permissions:
   contents: read
   packages: write
-
-env:
-  REGISTRY: ghcr.io
+  actions: write
+  checks: write
 
 jobs:
-  build-and-push:
+  build-image:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
-
-      # 解决 repo/owner 含大写导致的 GHCR/Docker 镜像名不合法问题：统一转小写
-      - name: Resolve image name (lowercase)
-        id: img
-        shell: bash
-        run: |
-          OWNER_LC="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
-          REPO_LC="$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')"
-          echo "image=${{ env.REGISTRY }}/${OWNER_LC}/${REPO_LC}-vehicle-mock" >> $GITHUB_OUTPUT
+        with:
+          submodules: "recursive"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -38,20 +30,34 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GHCR
+      - name: Log in to Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push (arm64)
+      - id: repo_lc
+        name: Prepare repository name in lower case for docker upload
+        uses: ASzc/change-string-case-action@v6
+        with:
+          string: ${{ github.repository }}
+
+      - name: Build and push Docker image (arm64)
         uses: docker/build-push-action@v6
         with:
-          context: ./vehicle-mock
-          file: ./vehicle-mock/Dockerfile
+          # 关键：用仓库根目录作为 context，确保 Dockerfile 里 COPY 的相对路径和“别人能成功构建”的方式一致
+          context: .
+          file: vehicle-mock/Dockerfile
+
+          # 只打包 CCU 需要的 arm64；如果你要 multiarch，我在下面给你开关
           platforms: linux/arm64
+
           push: true
           tags: |
-            ${{ steps.img.outputs.image }}:dev
-            ${{ steps.img.outputs.image }}:${{ github.sha }}
+            ghcr.io/${{ steps.repo_lc.outputs.lowercase }}/vehicle-mock:dev
+            ghcr.io/${{ steps.repo_lc.outputs.lowercase }}/vehicle-mock:${{ github.sha }}
+
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ steps.repo_lc.outputs.lowercase }}
+            org.opencontainers.image.revision=${{ github.sha }}

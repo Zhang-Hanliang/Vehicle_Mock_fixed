@@ -12,7 +12,7 @@ from lib.trigger import EventType
 #     listOfSignals = json.load(f)
 
 listOfSignals = [
-    @{"signal": "Vehicle.Body.Lights.ExteriorLightControl", "value": [1, 2, 3]},
+    #{"signal": "Vehicle.Body.Lights.ExteriorLightControl", "value": [1, 2, 3]},
     {"signal": "Vehicle.Chassis.Accelerator.PedalPositionControl", "value": [1, 2]},
     {"signal": "Vehicle.Chassis.Brake.PedalPositionControl", "value": [1, 2]},
     {"signal": "Vehicle.Chassis.SteeringWheel.AngleControl", "value": [1, 2]},
