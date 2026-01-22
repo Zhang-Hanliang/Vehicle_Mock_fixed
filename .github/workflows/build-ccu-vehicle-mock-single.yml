@@ -1,3 +1,8 @@
+# This file is maintained by velocitas CLI, do not modify manually. Change settings in .velocitas.json
+# Copyright (c) 2022-2024 Contributors to the Eclipse Foundation
+#
+# SPDX-License-Identifier: Apache-2.0
+
 name: Build CCU vehicle-mock for single arch
 
 on:
@@ -13,12 +18,13 @@ on:
 permissions:
   contents: read
   packages: write
+  actions: write
+  checks: write
 
 jobs:
   build-image:
     name: "Building image (${{ inputs.app_name }})"
     runs-on: ubuntu-22.04
-    container: ghcr.io/eclipse-velocitas/devcontainer-base-images/python:v0.4
 
     steps:
       - name: Checkout repository
@@ -32,21 +38,32 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - id: repo_lc
-        name: Prepare repository name in lower case for docker upload
-        uses: ASzc/change-string-case-action@v6
-        with:
-          string: ${{ github.repository }}
-
-      - name: Docker Login
+      - name: Log in to Container Registry (GHCR)
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # CI-only：不改你仓库里的 Dockerfile，只在 runner 上生成一个补丁 Dockerfile.ci
-      - name: Prepare patched Dockerfile (CI only)
+      - id: repo_lc
+        name: Prepare repository name in lower case for docker upload
+        uses: ASzc/change-string-case-action@v6
+        with:
+          string: ${{ github.repository }}
+
+      - name: Set Arguments for next step
+        id: set_args
+        shell: bash
+        run: |
+          if [ "${{ inputs.platform }}" = "multiarch" ]; then
+            echo "platforms=linux/amd64,linux/arm64" >> $GITHUB_OUTPUT
+          else
+            echo "platforms=linux/${{ inputs.platform }}" >> $GITHUB_OUTPUT
+          fi
+
+      # CI-only：不改仓库里的 Dockerfile，只在 CI 生成补丁版 Dockerfile.ci
+      # 目的：解决 arm64 下 pip 构建 staticx 时 build-isolation 环境找不到 SCons 的问题
+      - name: Prepare patched Dockerfile for CI
         shell: bash
         run: |
           cp vehicle-mock/Dockerfile vehicle-mock/Dockerfile.ci
@@ -59,8 +76,17 @@ jobs:
         with:
           context: ./vehicle-mock
           file: ./vehicle-mock/Dockerfile.ci
-          platforms: linux/${{ inputs.platform }}
           push: true
+          platforms: ${{ steps.set_args.outputs.platforms }}
           tags: |
             ghcr.io/${{ steps.repo_lc.outputs.lowercase }}/vehicle-mock:dev
             ghcr.io/${{ steps.repo_lc.outputs.lowercase }}/vehicle-mock:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ steps.repo_lc.outputs.lowercase }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Print image reference
+        run: |
+          echo "Pushed:"
+          echo "  ghcr.io/${{ steps.repo_lc.outputs.lowercase }}/vehicle-mock:dev"
+          echo "  ghcr.io/${{ steps.repo_lc.outputs.lowercase }}/vehicle-mock:${{ github.sha }}"

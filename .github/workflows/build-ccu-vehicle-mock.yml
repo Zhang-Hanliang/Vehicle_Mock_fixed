@@ -1,8 +1,16 @@
+# This file is maintained by velocitas CLI, do not modify manually. Change settings in .velocitas.json
+# Copyright (c) 2022-2024 Contributors to the Eclipse Foundation
+#
+# SPDX-License-Identifier: Apache-2.0
+
 name: Build CCU vehicle-mock
 
 on:
   workflow_dispatch:
   workflow_call:
+  #push:
+  #  branches:
+  #    - main
 
 permissions:
   contents: read
@@ -13,15 +21,19 @@ permissions:
 jobs:
   get-app-name:
     runs-on: ubuntu-22.04
+    name: Get App-Name
     outputs:
-      app_name: ${{ steps.export.outputs.app_name }}
+      app_name: ${{ steps.export-app-name.outputs.app_name }}
     steps:
-      - uses: actions/checkout@v4
-      - id: export
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Get app-name
+        id: export-app-name
         run: |
-          echo "app_name=CCU vehicle-mock" >> $GITHUB_OUTPUT
+          NAME="CCU vehicle-mock"
+          echo "app_name=$NAME" >> $GITHUB_OUTPUT
 
-  build-image:
+  build-image-arm64:
     uses: ./.github/workflows/build-ccu-vehicle-mock-single.yml
     needs: [get-app-name]
     with:
