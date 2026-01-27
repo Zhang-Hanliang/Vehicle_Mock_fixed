@@ -1,6 +1,16 @@
 # This file is maintained by velocitas CLI, do not modify manually. Change settings in .velocitas.json
 # Copyright (c) 2022-2024 Contributors to the Eclipse Foundation
 #
+# This program and the accompanying materials are made available under the
+# terms of the Apache License, Version 2.0 which is available at
+# https://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+#
 # SPDX-License-Identifier: Apache-2.0
 
 name: Build CCU vehicle-mock for single arch
@@ -17,6 +27,7 @@ on:
 
 permissions:
   contents: read
+  deployments: write
   packages: write
   actions: write
   checks: write
@@ -25,6 +36,9 @@ jobs:
   build-image:
     name: "Building image (${{ inputs.app_name }})"
     runs-on: ubuntu-22.04
+    container: ghcr.io/eclipse-velocitas/devcontainer-base-images/python:v0.4
+    env:
+      APP_NAME: ${{ inputs.app_name }}
 
     steps:
       - name: Checkout repository
@@ -38,66 +52,55 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Container Registry (GHCR)
-        uses: docker/login-action@v3
+      - id: github-repository-name-case-adjusted
+        name: Prepare repository name in lower case for docker upload. This supports repository names in mixed case
+        uses: ASzc/change-string-case-action@v6
+        with:
+          string: ${{ github.repository }}
+
+      - uses: de-vri-es/setup-git-credentials@v2
+        with:
+          credentials: https://user:${{ secrets.GITHUB_TOKEN }}@github.com/
+
+      - name: Init velocitas project
+        working-directory: ./vehicle-mock
+        run: |
+          velocitas init
+
+      - name: Setup git config
+        working-directory: ./vehicle-mock
+        shell: bash
+        run: |
+          git config --global user.email "github-automation@users.noreply.github.com"
+          git config --global user.name "Github Automation"
+
+      - name: Set Arguments for next step
+        id: set_args
+        run: |
+          if [ ${{ inputs.platform }} = "multiarch" ]; then
+            echo "Build Multiarch"
+            echo "platforms=linux/amd64, linux/arm64" >> $GITHUB_OUTPUT
+            echo "type=oci,dest=./${{ env.APP_NAME }}.tar" >> $GITHUB_OUTPUT
+          else
+            echo "Build ${{inputs.platform}}"
+            echo "platforms=linux/${{ inputs.platform }}" >> $GITHUB_OUTPUT
+            echo "type=docker,dest=./${{ env.APP_NAME }}.tar" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      - name: Docker Login
+        uses: docker/login-action@v2.1.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - id: repo_lc
-        name: Prepare repository name in lower case for docker upload
-        uses: ASzc/change-string-case-action@v6
-        with:
-          string: ${{ github.repository }}
-
-      - name: Set Arguments for next step
-        id: set_args
-        shell: bash
-        run: |
-          if [ "${{ inputs.platform }}" = "multiarch" ]; then
-            echo "platforms=linux/amd64,linux/arm64" >> $GITHUB_OUTPUT
-          else
-            echo "platforms=linux/${{ inputs.platform }}" >> $GITHUB_OUTPUT
-          fi
-
-      # CI-only：不改仓库里的 Dockerfile，只在 CI 生成补丁版 Dockerfile.ci
-      # 仅两处补丁：
-      # 1) staticx：加 --no-build-isolation（避免 arm64 下构建 staticx wheel 失败）
-      # 2) pyinstaller：只添加 jaraco 的 hidden-import（不使用 collect-submodules，避免非法模块名 show-newlines）
-      - name: Prepare patched Dockerfile for CI
-        shell: bash
-        run: |
-          cp vehicle-mock/Dockerfile vehicle-mock/Dockerfile.ci
-
-          # 1) staticx fix
-          sed -i 's/pip3 install --no-cache-dir staticx/pip3 install --no-cache-dir --no-build-isolation staticx/g' vehicle-mock/Dockerfile.ci
-
-          # 2) pyinstaller fix (precise line replacement)
-          # Original line in your Dockerfile:
-          #   RUN pyinstaller --clean -F -s --paths=src mockprovider.py
-          # Patch it to include jaraco hidden-imports (NO collect-submodules)
-          sed -i 's|^RUN pyinstaller --clean -F -s --paths=src mockprovider.py|RUN pyinstaller --clean -F -s --paths=src --hidden-import jaraco.text --hidden-import jaraco.functools --hidden-import jaraco.context mockprovider.py|g' vehicle-mock/Dockerfile.ci
-
-          echo "Patched lines:"
-          grep -n "staticx\|^RUN pyinstaller" vehicle-mock/Dockerfile.ci || true
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
+      - name: Build and push vehicle-mock image
+        id: build-production
+        uses: docker/build-push-action@v3.2.0
         with:
           context: ./vehicle-mock
-          file: ./vehicle-mock/Dockerfile.ci
+          file: ./vehicle-mock/Dockerfile
+          tags: ghcr.io/${{ steps.github-repository-name-case-adjusted.outputs.lowercase }}/vehicle-mock:${{ inputs.platform }}
           push: true
           platforms: ${{ steps.set_args.outputs.platforms }}
-          tags: |
-            ghcr.io/${{ steps.repo_lc.outputs.lowercase }}/vehicle-mock:dev
-            ghcr.io/${{ steps.repo_lc.outputs.lowercase }}/vehicle-mock:${{ github.sha }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ steps.repo_lc.outputs.lowercase }}
-            org.opencontainers.image.revision=${{ github.sha }}
-
-      - name: Print image reference
-        run: |
-          echo "Pushed:"
-          echo "  ghcr.io/${{ steps.repo_lc.outputs.lowercase }}/vehicle-mock:dev"
-          echo "  ghcr.io/${{ steps.repo_lc.outputs.lowercase }}/vehicle-mock:${{ github.sha }}"

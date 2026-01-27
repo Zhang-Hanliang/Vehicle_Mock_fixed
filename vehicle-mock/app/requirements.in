@@ -13,6 +13,3 @@
 # SPDX-License-Identifier: Apache-2.0
 
 kuksa_client==0.4.3
-jaraco.text
-jaraco.functools
-jaraco.context
