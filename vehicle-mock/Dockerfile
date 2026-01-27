@@ -46,9 +46,15 @@ WORKDIR /workspace/app
 
 
 RUN pyinstaller --clean -F -s --paths=src \
+    --hidden-import jaraco \
     --hidden-import jaraco.text \
     --hidden-import jaraco.functools \
     --hidden-import jaraco.context \
+    --hidden-import jaraco.classes \
+    --hidden-import jaraco.collections \
+    --hidden-import jaraco.itertools \
+    --hidden-import jaraco.stream \
+    --hidden-import jaraco.vcs \
     mockprovider.py
 
 WORKDIR /workspace/app/dist
