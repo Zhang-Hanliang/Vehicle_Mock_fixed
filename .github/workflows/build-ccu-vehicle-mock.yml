@@ -47,9 +47,9 @@ jobs:
           NAME="vehicle-mock"
           echo "app_name=$NAME" >> $GITHUB_OUTPUT
 
-  build-image-multiarch:
+  build-image-arm64:
     uses: ./.github/workflows/build-ccu-vehicle-mock-single.yml
     needs: [get-app-name]
     with:
-      platform: multiarch
+      platform: arm64
       app_name: ${{ needs.get-app-name.outputs.app_name }}
