@@ -45,7 +45,11 @@ RUN pip3 install --no-cache-dir pyinstaller==6.8.0 \
 WORKDIR /workspace/app
 
 
-RUN pyinstaller --clean -F -s --paths=src mockprovider.py
+RUN pyinstaller --clean -F -s --paths=src \
+    --hidden-import jaraco.text \
+    --hidden-import jaraco.functools \
+    --hidden-import jaraco.context \
+    mockprovider.py
 
 WORKDIR /workspace/app/dist
 
