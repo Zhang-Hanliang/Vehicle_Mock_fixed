@@ -47,10 +47,8 @@ WORKDIR /workspace/app
 
 RUN pyinstaller --clean -F -s --paths=src \
     --collect-submodules jaraco \
-    --copy-metadata jaraco.text \
-    --copy-metadata jaraco.functools \
-    --copy-metadata jaraco.context \
-    --hidden-import pkg_resources.extern \
+    --collect-submodules pkg_resources \
+    --hidden-import pkg_resources.py2_warn \
     mockprovider.py
 
 WORKDIR /workspace/app/dist
