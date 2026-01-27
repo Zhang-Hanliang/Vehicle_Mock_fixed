@@ -35,7 +35,7 @@ RUN /bin/bash -c 'set -ex && \
 
 RUN pip3 install --no-cache-dir pyinstaller==6.8.0 \
     && pip3 install --no-cache-dir patchelf==0.17.0.0 \
-    && pip3 install --no-cache-dir staticx \
+    && pip3 install --no-cache-dir --no-build-isolation staticx \
     && pip3 install --no-cache-dir -r ./workspace/app/requirements.in
 
 # WORKDIR /workspace
