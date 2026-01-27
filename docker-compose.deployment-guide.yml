@@ -1,197 +1,193 @@
 # 🚀 Vehicle Mock 部署指南
 
-## 📋 部署配置参考
+## 📋 镜像标签策略
 
-在OWA5X设备的 docker-compose.yml 中，你有三种标签策略可选：
+每次GitHub Actions构建会生成**3个唯一标签**：
 
-### **选项1：使用固定版本标签 v001arm（当前方式）**
-```yaml
-services:
-  vehicle-mock:
-    image: ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:v001arm
-    restart: always
-```
-
-**优点：**
-- 版本固定，不会自动更新
-- 生产环境稳定
-
-**缺点：**
-- 需要手动强制拉取新镜像
-- 同名标签会有缓存问题
-
-**更新方法：**
-```bash
-docker compose down
-docker rmi ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:v001arm
-docker compose up -d --pull always
-```
+1. **`:latest`** - 永远指向最新构建
+2. **`:数字`** - GitHub Actions运行编号（如`:1`, `:2`, `:3`...）**← 推荐使用**
+3. **`:sha-xxxxxxx`** - Git commit的完整SHA值
 
 ---
 
-### **选项2：使用 latest 标签（推荐开发/测试）**
-```yaml
-services:
-  vehicle-mock:
-    image: ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:latest
-    restart: always
-    pull_policy: always  # Docker Compose v2.0+
-```
+## 🎯 推荐使用方式：编号标签
 
-**优点：**
-- 总是获取最新构建
-- 不需要手动删除镜像
+### **在CCU设备上拉取镜像：**
 
-**缺点：**
-- 每次重启都会检查更新（稍慢）
-- 可能引入未预期的变更
-
-**更新方法：**
 ```bash
+# 1. 查看GitHub Actions页面，获取最新的运行编号
+# 例如：Build #15
+
+# 2. 在CCU上拉取对应编号的镜像
+docker pull ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:15
+
+# 3. 停止旧容器
 docker compose down
-docker compose up -d --pull always
-```
 
----
+# 4. 修改docker-compose.yml，使用新编号
+# 编辑: image: ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:15
 
-### **选项3：使用 Git SHA 标签（推荐生产环境）**
-```yaml
-services:
-  vehicle-mock:
-    # 使用特定的commit SHA，确保绝对的可追溯性
-    image: ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:868dc93abcdef...
-    restart: always
-```
-
-**优点：**
-- 完全可追溯，知道运行的是哪个commit
-- 不会有缓存问题（每个SHA都是唯一的）
-- 生产环境最佳实践
-
-**缺点：**
-- 需要手动更新SHA值
-
-**更新方法：**
-```bash
-# 1. 在GitHub Actions页面查看最新构建的commit SHA
-# 2. 更新docker-compose.yml中的SHA标签
-# 3. 重新部署
+# 5. 启动新容器
 docker compose up -d
+
+# 6. 查看日志
+docker logs -f debian-vehicle-mock-1
 ```
 
 ---
 
-## 🎯 推荐的完整 docker-compose.yml 配置
+## 📝 完整操作流程
 
-```yaml
-version: '3.8'
+### **1️⃣ 在Windows开发机上推送代码**
+```bash
+cd c:\Users\AHH1SGH\Desktop\Mock_Test
+git add .
+git commit -m "fix: 修复某个问题"
+git push
+```
 
-services:
-  vehicle-mock:
-    image: ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:latest
-    container_name: debian-vehicle-mock-1
-    restart: always
-    pull_policy: always  # 确保总是检查更新
-    environment:
-      - DAPR_GRPC_PORT=${DAPR_GRPC_PORT:-50001}
-      - VEHICLEDATABROKER_DAPR_APP_ID=${VEHICLEDATABROKER_DAPR_APP_ID:-vehicledatabroker}
-    volumes:
-      - /etc/ccu-applet/ccu-applet.log:/var/log/ccu-applet.log
-    networks:
-      - ccu-network
+### **2️⃣ 在GitHub上查看构建编号**
+访问：https://github.com/Zhang-Hanliang/Vehicle_Mock_fixed/actions
 
-networks:
-  ccu-network:
-    external: true
+找到最新的workflow运行，记下编号（例如 `#15`）
+
+### **3️⃣ 在CCU设备上更新镜像**
+```bash
+# SSH登录到CCU
+ssh debian@A12FA9
+
+# 拉取新镜像（使用上面看到的编号）
+docker pull ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:15
+
+# 停止服务
+cd /path/to/your/docker-compose/
+docker compose down
+
+# 编辑docker-compose.yml
+nano docker-compose.yml
+# 修改这一行：
+#   image: ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:15
+
+# 启动服务
+docker compose up -d
+
+# 实时查看日志，确认没有错误
+docker logs -f debian-vehicle-mock-1
 ```
 
 ---
 
-## 🔄 快速更新脚本
+## 🔧 简化脚本（推荐）
 
-创建一个便捷的更新脚本 `update-vehicle-mock.sh`：
+在CCU上创建更新脚本 `/home/debian/update-mock.sh`：
 
 ```bash
 #!/bin/bash
-# update-vehicle-mock.sh
+# update-mock.sh - Vehicle Mock 更新脚本
 
-echo "🔄 Updating vehicle-mock..."
+if [ -z "$1" ]; then
+    echo "❌ 错误：需要指定镜像编号"
+    echo "用法: $0 <编号>"
+    echo "例如: $0 15"
+    exit 1
+fi
+
+BUILD_NUM=$1
+IMAGE="ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:${BUILD_NUM}"
+
+echo "🔄 更新 vehicle-mock 到版本 #${BUILD_NUM}"
+echo ""
+
+# 拉取镜像
+echo "⬇️  拉取镜像..."
+docker pull ${IMAGE}
+if [ $? -ne 0 ]; then
+    echo "❌ 拉取失败！"
+    exit 1
+fi
 
 # 停止容器
-echo "📦 Stopping container..."
+echo "📦 停止容器..."
+cd /home/debian  # 修改为你的docker-compose.yml所在目录
 docker compose down
 
-# 删除旧镜像
-echo "🗑️  Removing old image..."
-docker rmi ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:latest 2>/dev/null || true
-
-# 拉取最新镜像
-echo "⬇️  Pulling latest image..."
-docker pull ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:latest
+# 更新docker-compose.yml
+echo "✏️  更新配置..."
+sed -i "s|image: ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:.*|image: ${IMAGE}|g" docker-compose.yml
 
 # 启动容器
-echo "🚀 Starting container..."
+echo "🚀 启动容器..."
 docker compose up -d
 
+# 等待启动
+sleep 3
+
 # 显示日志
-echo "📋 Showing logs..."
-sleep 2
-docker logs --tail 50 -f debian-vehicle-mock-1
+echo ""
+echo "📋 容器日志："
+docker logs --tail 30 debian-vehicle-mock-1
+
+echo ""
+echo "✅ 更新完成！"
+echo "继续查看日志: docker logs -f debian-vehicle-mock-1"
 ```
 
-使用方法：
+**使用方法：**
 ```bash
-chmod +x update-vehicle-mock.sh
-./update-vehicle-mock.sh
+chmod +x /home/debian/update-mock.sh
+
+# 更新到版本15
+./update-mock.sh 15
 ```
 
 ---
 
-## 📊 镜像标签说明
+## 📊 标签对比表
 
-现在GitHub Actions会为每次构建生成三个标签：
-
-1. **`v001arm`** - 固定版本标签（覆盖式更新）
-2. **`latest`** - 永远指向最新构建
-3. **`<git-sha>`** - 每个commit的唯一标签（如`868dc93`）
-
-你可以在GitHub Packages页面看到所有标签：
-https://github.com/Zhang-Hanliang/Vehicle_Mock_fixed/pkgs/container/vehicle-mock
+| 标签类型 | 示例 | 唯一性 | 推荐场景 |
+|---------|------|--------|---------|
+| **编号标签** | `:15` | ✅ 唯一 | **推荐：日常更新** |
+| SHA标签 | `:sha-868dc93abc...` | ✅ 唯一 | 需要精确追溯commit |
+| latest | `:latest` | ❌ 会覆盖 | 快速测试（需手动删除旧镜像） |
 
 ---
 
-## ✅ 当前推荐方案
+## ✅ 优势
 
-**对于你的情况，我推荐：**
+使用编号标签的好处：
 
-1. **立即操作（解决当前问题）：**
-   ```bash
-   docker compose down
-   docker rmi ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:v001arm
-   docker compose up -d --pull always
-   ```
-
-2. **长期方案（修改docker-compose.yml）：**
-   - 改用 `latest` 标签
-   - 添加 `pull_policy: always`
-   - 这样每次 `docker compose up -d` 都会自动检查更新
+1. ✅ **编号递增**：容易理解，知道哪个是最新的
+2. ✅ **永远唯一**：每次构建编号不同，不会有缓存问题  
+3. ✅ **简洁易用**：比长长的SHA更方便输入
+4. ✅ **自动生成**：GitHub Actions自动分配，无需手动维护
+5. ✅ **完全可追溯**：在GitHub Actions页面可以看到每个编号对应的构建详情
 
 ---
 
 ## 🐛 故障排查
 
-如果更新后仍然报错，请检查：
-
+### **问题1：不知道最新的编号是多少**
+**解决：**
 ```bash
-# 1. 确认拉取的是最新镜像
-docker images | grep vehicle-mock
+# 方法1：查看GitHub Actions页面
+# https://github.com/Zhang-Hanliang/Vehicle_Mock_fixed/actions
 
-# 2. 检查镜像创建时间（应该是最近的）
-docker inspect ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:latest | grep Created
+# 方法2：在CCU上查看所有可用标签
+docker pull ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:latest
+docker inspect ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:latest | grep "Created"
+```
 
-# 3. 查看容器日志
-docker logs --tail 100 debian-vehicle-mock-1
+### **问题2：拉取镜像权限错误**
+**解决：**
+```bash
+# 登录GitHub Container Registry
+docker login ghcr.io -u zhang-hanliang
+# 输入你的GitHub Personal Access Token
+```
 
-# 4. 如果还是有问题，检查GitHub Actions构建状态
-# 访问: https://github.com/Zhang-Hanliang/Vehicle_Mock_fixed/actions
+### **问题3：想回滚到旧版本**
+**解决：**
+```bash
+# 使用之前的编号即可
+./update-mock.sh 12  # 回滚到版本12
 ```

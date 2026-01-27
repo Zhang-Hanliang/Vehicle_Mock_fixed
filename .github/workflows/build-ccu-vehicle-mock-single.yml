@@ -102,8 +102,18 @@ jobs:
           context: ./vehicle-mock
           file: ./vehicle-mock/Dockerfile
           tags: |
-            ghcr.io/${{ steps.github-repository-name-case-adjusted.outputs.lowercase }}/vehicle-mock:v001arm
             ghcr.io/${{ steps.github-repository-name-case-adjusted.outputs.lowercase }}/vehicle-mock:latest
-            ghcr.io/${{ steps.github-repository-name-case-adjusted.outputs.lowercase }}/vehicle-mock:${{ github.sha }}
+            ghcr.io/${{ steps.github-repository-name-case-adjusted.outputs.lowercase }}/vehicle-mock:${{ github.run_number }}
+            ghcr.io/${{ steps.github-repository-name-case-adjusted.outputs.lowercase }}/vehicle-mock:sha-${{ github.sha }}
           push: true
           platforms: "linux/arm64"
+          
+      - name: Print image tags
+        run: |
+          echo "✅ 镜像已推送到以下标签："
+          echo "  ghcr.io/${{ steps.github-repository-name-case-adjusted.outputs.lowercase }}/vehicle-mock:latest"
+          echo "  ghcr.io/${{ steps.github-repository-name-case-adjusted.outputs.lowercase }}/vehicle-mock:${{ github.run_number }}"
+          echo "  ghcr.io/${{ steps.github-repository-name-case-adjusted.outputs.lowercase }}/vehicle-mock:sha-${{ github.sha }}"
+          echo ""
+          echo "🚀 在CCU上拉取镜像："
+          echo "  docker pull ghcr.io/${{ steps.github-repository-name-case-adjusted.outputs.lowercase }}/vehicle-mock:${{ github.run_number }}"
