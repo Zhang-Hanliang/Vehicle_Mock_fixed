@@ -101,6 +101,9 @@ jobs:
         with:
           context: ./vehicle-mock
           file: ./vehicle-mock/Dockerfile
-          tags: ghcr.io/${{ steps.github-repository-name-case-adjusted.outputs.lowercase }}/vehicle-mock:v001arm
+          tags: |
+            ghcr.io/${{ steps.github-repository-name-case-adjusted.outputs.lowercase }}/vehicle-mock:v001arm
+            ghcr.io/${{ steps.github-repository-name-case-adjusted.outputs.lowercase }}/vehicle-mock:latest
+            ghcr.io/${{ steps.github-repository-name-case-adjusted.outputs.lowercase }}/vehicle-mock:${{ github.sha }}
           push: true
           platforms: "linux/arm64"

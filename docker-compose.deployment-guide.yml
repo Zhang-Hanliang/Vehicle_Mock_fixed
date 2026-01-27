@@ -1,0 +1,197 @@
+# 🚀 Vehicle Mock 部署指南
+
+## 📋 部署配置参考
+
+在OWA5X设备的 docker-compose.yml 中，你有三种标签策略可选：
+
+### **选项1：使用固定版本标签 v001arm（当前方式）**
+```yaml
+services:
+  vehicle-mock:
+    image: ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:v001arm
+    restart: always
+```
+
+**优点：**
+- 版本固定，不会自动更新
+- 生产环境稳定
+
+**缺点：**
+- 需要手动强制拉取新镜像
+- 同名标签会有缓存问题
+
+**更新方法：**
+```bash
+docker compose down
+docker rmi ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:v001arm
+docker compose up -d --pull always
+```
+
+---
+
+### **选项2：使用 latest 标签（推荐开发/测试）**
+```yaml
+services:
+  vehicle-mock:
+    image: ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:latest
+    restart: always
+    pull_policy: always  # Docker Compose v2.0+
+```
+
+**优点：**
+- 总是获取最新构建
+- 不需要手动删除镜像
+
+**缺点：**
+- 每次重启都会检查更新（稍慢）
+- 可能引入未预期的变更
+
+**更新方法：**
+```bash
+docker compose down
+docker compose up -d --pull always
+```
+
+---
+
+### **选项3：使用 Git SHA 标签（推荐生产环境）**
+```yaml
+services:
+  vehicle-mock:
+    # 使用特定的commit SHA，确保绝对的可追溯性
+    image: ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:868dc93abcdef...
+    restart: always
+```
+
+**优点：**
+- 完全可追溯，知道运行的是哪个commit
+- 不会有缓存问题（每个SHA都是唯一的）
+- 生产环境最佳实践
+
+**缺点：**
+- 需要手动更新SHA值
+
+**更新方法：**
+```bash
+# 1. 在GitHub Actions页面查看最新构建的commit SHA
+# 2. 更新docker-compose.yml中的SHA标签
+# 3. 重新部署
+docker compose up -d
+```
+
+---
+
+## 🎯 推荐的完整 docker-compose.yml 配置
+
+```yaml
+version: '3.8'
+
+services:
+  vehicle-mock:
+    image: ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:latest
+    container_name: debian-vehicle-mock-1
+    restart: always
+    pull_policy: always  # 确保总是检查更新
+    environment:
+      - DAPR_GRPC_PORT=${DAPR_GRPC_PORT:-50001}
+      - VEHICLEDATABROKER_DAPR_APP_ID=${VEHICLEDATABROKER_DAPR_APP_ID:-vehicledatabroker}
+    volumes:
+      - /etc/ccu-applet/ccu-applet.log:/var/log/ccu-applet.log
+    networks:
+      - ccu-network
+
+networks:
+  ccu-network:
+    external: true
+```
+
+---
+
+## 🔄 快速更新脚本
+
+创建一个便捷的更新脚本 `update-vehicle-mock.sh`：
+
+```bash
+#!/bin/bash
+# update-vehicle-mock.sh
+
+echo "🔄 Updating vehicle-mock..."
+
+# 停止容器
+echo "📦 Stopping container..."
+docker compose down
+
+# 删除旧镜像
+echo "🗑️  Removing old image..."
+docker rmi ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:latest 2>/dev/null || true
+
+# 拉取最新镜像
+echo "⬇️  Pulling latest image..."
+docker pull ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:latest
+
+# 启动容器
+echo "🚀 Starting container..."
+docker compose up -d
+
+# 显示日志
+echo "📋 Showing logs..."
+sleep 2
+docker logs --tail 50 -f debian-vehicle-mock-1
+```
+
+使用方法：
+```bash
+chmod +x update-vehicle-mock.sh
+./update-vehicle-mock.sh
+```
+
+---
+
+## 📊 镜像标签说明
+
+现在GitHub Actions会为每次构建生成三个标签：
+
+1. **`v001arm`** - 固定版本标签（覆盖式更新）
+2. **`latest`** - 永远指向最新构建
+3. **`<git-sha>`** - 每个commit的唯一标签（如`868dc93`）
+
+你可以在GitHub Packages页面看到所有标签：
+https://github.com/Zhang-Hanliang/Vehicle_Mock_fixed/pkgs/container/vehicle-mock
+
+---
+
+## ✅ 当前推荐方案
+
+**对于你的情况，我推荐：**
+
+1. **立即操作（解决当前问题）：**
+   ```bash
+   docker compose down
+   docker rmi ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:v001arm
+   docker compose up -d --pull always
+   ```
+
+2. **长期方案（修改docker-compose.yml）：**
+   - 改用 `latest` 标签
+   - 添加 `pull_policy: always`
+   - 这样每次 `docker compose up -d` 都会自动检查更新
+
+---
+
+## 🐛 故障排查
+
+如果更新后仍然报错，请检查：
+
+```bash
+# 1. 确认拉取的是最新镜像
+docker images | grep vehicle-mock
+
+# 2. 检查镜像创建时间（应该是最近的）
+docker inspect ghcr.io/zhang-hanliang/vehicle_mock_fixed/vehicle-mock:latest | grep Created
+
+# 3. 查看容器日志
+docker logs --tail 100 debian-vehicle-mock-1
+
+# 4. 如果还是有问题，检查GitHub Actions构建状态
+# 访问: https://github.com/Zhang-Hanliang/Vehicle_Mock_fixed/actions
+```
